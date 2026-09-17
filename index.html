@@ -121,7 +121,6 @@ input, textarea, select { -webkit-user-select:text; -moz-user-select:text; user-
 <div class="container">
   <div class="kpi-grid" id="kpiGrid"></div>
   <div class="charts-grid">
-    <div class="chart-card"><h3>&#128181; Valor por Tipo de Contrato</h3><canvas id="chartByType"></canvas></div>
     <div class="charts-row">
       <div class="chart-card"><h3>&#128260; Estado de Contratos</h3><canvas id="chartByStatus"></canvas></div>
       <div class="chart-card"><h3>&#128737;&#65039; Estado de Garant&#237;as</h3><canvas id="chartGuarantees"></canvas></div>
@@ -298,7 +297,7 @@ const CLIENT = {
           "observaciones": ""
         }
       },
-      "otrasObservaciones": "Pólizas no fueron suministradas. Cláusula Penal: 10% del valor total contratado. ",
+      "otrasObservaciones": "Pólizas no fueron suministradas. Cláusula Penal: 10% del valor total contratado.",
       "contratoPadre": true,
       "alertaCritica": true,
       "estadoNota": ""
@@ -553,7 +552,7 @@ const CLIENT = {
       "fechaInicio": "2026-07-22",
       "fechaFin": "2026-09-11",
       "estado": "Finalizado",
-      "valorTotal": 0,
+      "valorTotal": 56278052,
       "valorMensual": 0,
       "garantias": {
         "Buen manejo del anticipo": {
@@ -577,11 +576,10 @@ const CLIENT = {
           "observaciones": "Vigente desde 27/08/2026 hasta 27/08/2027"
         }
       },
-      "otrasObservaciones": "Plazo 36 días hábiles. Pendientes actas de inicio y recibido a satisfacción. ",
+      "otrasObservaciones": "Plazo 36 días hábiles. Pendientes actas de inicio y recibido a satisfacción. Forma de pago: Anticipo 40% a la firma del contrato. 2° pago 25% contra entrega y a satisfacción de Fase I (tanque 1). 3er pago 25% contra entrega y recibido a satisfacción de Fase II(tanque 2). Pago final del 10% a suscripción acta de entrega y recibido a satisfacción de las obras.",
       "contratoPadre": false,
       "alertaCritica": true,
-      "estadoNota": "",
-      "valorTexto": "Anticipo 40% a la firma del contrato. 2° pago 25% contra entrega y a satisfacción de Fase I (tanque 1). 3er pago 25% contra entrega y recibido a satisfacción de Fase II(tanque 2). Pago final del 10% a suscripción acta de entrega y recibido a satisfacción de las obras."
+      "estadoNota": ""
     },
     {
       "contratista": "BOMBAS Y AUTOMATIZACIÓN S.A.S",
@@ -615,7 +613,7 @@ const CLIENT = {
           "observaciones": ""
         }
       },
-      "otrasObservaciones": "Contrato firmado en el mes de septiembre, en proceso de elaboración de pólizas. Valor mensual antes de IVA. ",
+      "otrasObservaciones": "Contrato firmado en el mes de septiembre, en proceso de elaboración de pólizas. Valor mensual antes de IVA.",
       "contratoPadre": false,
       "alertaCritica": true,
       "estadoNota": ""
@@ -628,7 +626,7 @@ const CLIENT = {
       "fechaInicio": "2026-03-12",
       "fechaFin": "2026-06-30",
       "estado": "Finalizado",
-      "valorTotal": 0,
+      "valorTotal": 71759499,
       "valorMensual": 0,
       "garantias": {
         "Cumplimiento": {
@@ -652,11 +650,10 @@ const CLIENT = {
           "observaciones": "Vigente hasta 28/06/2027"
         }
       },
-      "otrasObservaciones": "Plazo 70 días hábilies. Pendientes actas de inicio y recibido a satisfacción. ",
+      "otrasObservaciones": "Plazo 70 días hábiles. Pendientes actas de inicio y recibido a satisfacción. Forma de pago: Valor cancelado en 10 cuotas mensuales",
       "contratoPadre": true,
       "alertaCritica": true,
-      "estadoNota": "",
-      "valorTexto": "Valor cancelado en 10 cuotas mensuales"
+      "estadoNota": ""
     }
   ],
   "compromisos": {
@@ -726,9 +723,10 @@ const CLIENT = {
   }
 };
 
+CLIENT.contratos.forEach(function(c, i) { c._idx = i; });
 let filteredContratos = [...CLIENT.contratos];
 let showFinalizados = false;
-let chartByType, chartByStatus, chartGuarantees;
+let chartByStatus, chartGuarantees;
 
 document.addEventListener('DOMContentLoaded', function() {
   initHeader();
@@ -748,14 +746,22 @@ function setupTooltipEdgeGuard() {
     if (!tip) return;
     const tt = tip.querySelector('.tip-text');
     if (!tt) return;
-    tt.style.transform = 'translateX(-50%)';
     const margin = 12;
-    const rect = tt.getBoundingClientRect();
-    if (rect.left < margin) {
-      tt.style.transform = 'translateX(calc(-50% + ' + (margin - rect.left) + 'px))';
-    } else if (rect.right > window.innerWidth - margin) {
-      tt.style.transform = 'translateX(calc(-50% - ' + (rect.right - (window.innerWidth - margin)) + 'px))';
-    }
+    const iconRect = tip.getBoundingClientRect();
+    // Se saca del flujo del contenedor (que puede tener overflow-x:auto y recortarlo)
+    // posicion&#225;ndolo respecto al viewport, no al contenedor.
+    tt.style.position = 'fixed';
+    tt.style.bottom = 'auto';
+    tt.style.left = '0px';
+    tt.style.transform = 'none';
+    const ttWidth = tt.offsetWidth || 220;
+    let left = iconRect.left + (iconRect.width / 2) - (ttWidth / 2);
+    if (left < margin) left = margin;
+    if (left + ttWidth > window.innerWidth - margin) left = window.innerWidth - margin - ttWidth;
+    let top = iconRect.top - tt.offsetHeight - 8;
+    if (top < margin) top = iconRect.bottom + 8;
+    tt.style.left = left + 'px';
+    tt.style.top = top + 'px';
   });
 }
 
@@ -830,19 +836,6 @@ function runEntryAnimations() {
 
 function createCharts() {
   const contratos = CLIENT.contratos;
-  const typeData = {};
-  contratos.forEach(function(c) {
-    if (!typeData[c.tipo]) typeData[c.tipo] = 0;
-    typeData[c.tipo] += (c.valorTotal || 0);
-  });
-  if (chartByType) chartByType.destroy();
-  chartByType = new Chart(document.getElementById('chartByType'), {
-    type: 'bar',
-    data: { labels: Object.keys(typeData), datasets: [{label:'Valor Total', data:Object.values(typeData),
-      backgroundColor:['#667eea','#764ba2','#f093fb','#4facfe','#fa709a','#43e97b','#f6d365','#fda085','#a18cd1','#fbc2eb','#84fab0','#8fd3f4']}] },
-    options: { responsive:true, maintainAspectRatio:true, plugins:{legend:{display:false}},
-      scales:{y:{ticks:{callback:function(v){return '$'+(v/1000000).toFixed(1)+'M';}}}} }
-  });
 
   const statusData = {};
   contratos.forEach(function(c) {
@@ -895,7 +888,7 @@ function populateTable() {
     const gCount = Object.keys(contrato.garantias||{}).length;
     const gText = gCount>0 ? gCount+' registradas' : 'N/A';
     const gClass = gCount>0 ? 'garantia-completa' : 'garantia-na';
-    const idSafe = encodeURIComponent(contrato.contratista + '||' + (contrato.objeto||'').slice(0,20));
+    const idSafe = contrato._idx;
     const alerta = contrato.alertaCritica ? '<span class="alerta-critica-badge">&#9888; Pendiente</span>' : '';
     const nombreCell = (contrato.contratoPadre ? '&#8618; ' : '') + contrato.contratista + alerta;
     const tip = contrato.estadoNota ? '<span class="info-tip">i<span class="tip-text">'+contrato.estadoNota+'</span></span>' : '';
@@ -942,10 +935,8 @@ function filterTable() {
 }
 
 function showDetails(idEnc) {
-  const key = decodeURIComponent(idEnc);
-  const contrato = CLIENT.contratos.find(function(c) {
-    return (c.contratista+'||'+(c.objeto||'').slice(0,20)) === key;
-  });
+  const idx = parseInt(idEnc, 10);
+  const contrato = CLIENT.contratos[idx];
   if (!contrato) return;
   const modal = document.getElementById('detalleModal');
   document.getElementById('modalContratista').textContent = contrato.contratista;
